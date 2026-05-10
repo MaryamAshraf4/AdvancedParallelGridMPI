@@ -131,6 +131,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AdvancedParallelGridMPI.cpp" />
+    <ClCompile Include="HeatDiffusion.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="HeatDiffusion.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
