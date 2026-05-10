@@ -18,5 +18,13 @@
     <ClCompile Include="AdvancedParallelGridMPI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="HeatDiffusion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="HeatDiffusion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
