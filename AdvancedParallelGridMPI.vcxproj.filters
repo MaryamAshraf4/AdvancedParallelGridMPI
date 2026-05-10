@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AdvancedParallelGridMPI.cpp">
+    <ClCompile Include="HeatDiffusion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HeatDiffusion.cpp">
+    <ClCompile Include="Source.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

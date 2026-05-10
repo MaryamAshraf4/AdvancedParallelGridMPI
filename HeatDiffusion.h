@@ -1,6 +1,3 @@
 #pragma once
-void RunHeatDiffusion(int rank, int size);
-//class HeatDiffusion
-//{
-//};
 
+void run_heat_diffusion(int argc, char** argv);

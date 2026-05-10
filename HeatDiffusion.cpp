@@ -517,80 +517,50 @@ void print_performance_header(int rank)
 /* ═════════════════════════════════════════════════════════════
    MAIN
    ═════════════════════════════════════════════════════════════ */
-int main(int argc, char** argv)
+void run_heat_diffusion(int argc, char** argv)
 {
-    MPI_Init(&argc, &argv);
-
     int world_rank, world_size;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     if (world_size < 2) {
         if (world_rank == 0)
-            std::cerr << "ERROR: This program requires at least 2 MPI processes.\n"
-                      << "Run with: mpirun -np 2 ./heat_diffusion\n";
-        MPI_Finalize();
-        return 1;
+            std::cerr << "ERROR: This program requires at least 2 MPI processes.\n";
+        return;
     }
 
     Config cfg = parse_args(argc, argv);
 
-    /* ── Process Organisation with MPI_Comm_split ────────────
-     *
-     *  We create two communicator groups:
-     *
-     *  COMPUTE  (color=0): all ranks – they all run the stencil
-     *  MONITOR  (color=1): only rank 0 – it handles I/O & reporting
-     *
-     *  In a larger system the monitor group could run a separate
-     *  algorithm (e.g. matrix multiply) concurrently with the
-     *  compute group running heat diffusion.  Here rank 0 belongs
-     *  to both groups (acting as coordinator).
-     *
-     *  key = world_rank preserves rank ordering within each group.
-     * ───────────────────────────────────────────────────────── */
-    int compute_color = 0;                    // every rank joins compute
+    int compute_color = 0;
     int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
 
     MPI_Comm compute_comm, monitor_comm;
+
     MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm);
     MPI_Comm_split(MPI_COMM_WORLD, monitor_color, world_rank, &monitor_comm);
 
     int compute_rank, compute_size;
+
     MPI_Comm_rank(compute_comm, &compute_rank);
     MPI_Comm_size(compute_comm, &compute_size);
 
     if (compute_rank == 0) {
         ruler();
         std::cout << " Heat Diffusion MPI Solver\n";
-        std::cout << " World size : " << world_size << " processes\n";
-        std::cout << " Compute comm size : " << compute_size << "\n";
-        std::cout << " Communicator: compute_comm (all), monitor_comm (rank 0)\n";
         ruler();
     }
 
-    /* ── Deadlock demonstration (optional) ─────────────────── */
     if (cfg.demo_deadlock) {
-        if (compute_rank == 0) {
-            std::cout << "\n*** DEADLOCK DEMONSTRATION MODE ***\n\n";
-        }
         demo_deadlock_scenario(compute_comm, compute_rank, compute_size, cfg.cols);
-        if (compute_rank == 0) {
-            std::cout << "\nDeadlock demo complete. Now running the actual solver...\n\n";
-        }
         MPI_Barrier(compute_comm);
     }
 
     print_performance_header(compute_rank);
 
-    /* ── Run the main solver ─────────────────────────────── */
     run_solver(cfg, world_rank, world_size, compute_comm, monitor_comm);
 
-    /* ── Cleanup ─────────────────────────────────────────── */
     MPI_Comm_free(&compute_comm);
+
     if (monitor_comm != MPI_COMM_NULL)
         MPI_Comm_free(&monitor_comm);
-
-    MPI_Finalize();
-    return 0;
 }
