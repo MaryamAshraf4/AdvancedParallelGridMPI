@@ -142,7 +142,7 @@ void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MP
         cout << "This avoids circular waiting.\n\n";
     }
 
-    MPI_Barrier(comm);
+    //MPI_Barrier(comm);
 
     MPI_Request reqs[4];
     int nreqs = 0;
@@ -335,8 +335,8 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
     /* ── 3. Initialise and scatter the global grid ────── */
     // Rank 0 builds the full grid then scatterv's row slabs.
     // We send only the owned rows (no ghosts), stride = COLS.
-    std::vector<double> global_grid;
-    std::vector<int> send_counts(compute_size), send_offsets(compute_size);
+    vector<double> global_grid;
+    vector<int> send_counts(compute_size), send_offsets(compute_size);
     for (int p = 0; p < compute_size; ++p) {
         send_counts[p]  = row_counts[p]  * COLS;
         send_offsets[p] = row_offsets[p] * COLS;
