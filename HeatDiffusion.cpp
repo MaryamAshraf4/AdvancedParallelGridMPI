@@ -267,7 +267,7 @@ double compute_stencil( const vector<double>& cur, vector<double>& nxt, int loca
 /* ═════════════════════════════════════════════════════════════
    MAIN SOLVER
    ═════════════════════════════════════════════════════════════ */
-void run_solver(const Config& cfg, int rank, int size, MPI_Comm compute_comm)
+void run_solver(const Config& cfg, MPI_Comm compute_comm)
 {
     const int ROWS = cfg.rows;
     const int COLS = cfg.cols;
@@ -484,6 +484,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
             << " Heat Diffusion MPI Solver\n"; ruler();
     }
     print_performance_header(compute_rank);
-    run_solver(cfg, world_rank, world_size, compute_comm);
+    run_solver(cfg,compute_comm);
+    MPI_Comm_free(&compute_comm);
 
 }
