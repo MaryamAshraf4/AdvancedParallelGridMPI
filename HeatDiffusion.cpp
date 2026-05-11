@@ -87,9 +87,6 @@ void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MP
     double* first_real = local.data() + cols;
     double* last_real = local.data() + local_rows * cols;
 
-    /* ─────────────────────────────────────────────────────
-       BROKEN VERSION
-       ───────────────────────────────────────────────────── */
     if (rank == 0) {
         ruler();
         cout << "\n[DEADLOCK DEMO - HEAT DIFFUSION]\n";
@@ -128,26 +125,16 @@ void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MP
 
     MPI_Barrier(comm);
 
-    /* ─────────────────────────────────────────────────────
-       FIXED VERSION
-       ─────────────────────────────────────────────────────
-       Use non-blocking communication:
-       - Post receives first
-       - Then sends
-       - Finish with MPI_Waitall
-    */
     if (rank == 0) {
         cout << "\n[DEADLOCK FIX - NONBLOCKING]\n";
         cout << "Using MPI_Isend + MPI_Irecv for ghost rows.\n";
         cout << "This avoids circular waiting.\n\n";
     }
 
-    //MPI_Barrier(comm);
 
     MPI_Request reqs[4];
     int nreqs = 0;
 
-    /* Post receives first */
     if (rank > 0)
         MPI_Irecv(top_ghost, cols, MPI_DOUBLE,
             rank - 1, TAG_UP,
@@ -158,7 +145,6 @@ void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MP
             rank + 1, TAG_DOWN,
             comm, &reqs[nreqs++]);
 
-    /* Then sends */
     if (rank > 0)
         MPI_Isend(first_real, cols, MPI_DOUBLE,
             rank - 1, TAG_DOWN,
@@ -191,7 +177,6 @@ void exchange_ghosts_nonblocking( vector<double>& local, int local_rows, int col
     int nreqs = 0;
     const int TAG_DOWN = 1, TAG_UP = 2;
 
-    /* Ghost row at top = row index 0; ghost at bottom = local_rows+1 */
     double* top_ghost  = local.data();
     double* bot_ghost  = local.data() + (local_rows + 1) * cols;
     double* first_real = local.data() + cols;
@@ -264,15 +249,11 @@ double compute_stencil( const vector<double>& cur, vector<double>& nxt, int loca
     return max_delta;
 }
 
-/* ═════════════════════════════════════════════════════════════
-   MAIN SOLVER
-   ═════════════════════════════════════════════════════════════ */
 void run_solver(const Config& cfg, MPI_Comm compute_comm)
 {
     const int ROWS = cfg.rows;
     const int COLS = cfg.cols;
 
-    /* ── 1. Compute uneven row distribution ─────────────── */
     int compute_size, compute_rank;
     MPI_Comm_size(compute_comm, &compute_size);
     MPI_Comm_rank(compute_comm, &compute_rank);
@@ -314,8 +295,6 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
         ruler();
     }
 
-    /* ── 2. Allocate local buffer (+2 ghost rows) ─────── */
-    // Layout: [ghost_top | row_0 .. row_{lr-1} | ghost_bot]
     int buf_rows = local_rows + 2;
     vector<double> cur(buf_rows * COLS, 0.0);
     vector<double> nxt(buf_rows * COLS, 0.0);
@@ -332,9 +311,6 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
         MPI_Barrier(compute_comm);
     }
 
-    /* ── 3. Initialise and scatter the global grid ────── */
-    // Rank 0 builds the full grid then scatterv's row slabs.
-    // We send only the owned rows (no ghosts), stride = COLS.
     vector<double> global_grid;
     vector<int> send_counts(compute_size), send_offsets(compute_size);
     for (int p = 0; p < compute_size; ++p) {
@@ -347,24 +323,20 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
         load_csv("heat_input.csv", global_grid, ROWS, COLS);
     }
 
-    // Scatter owned rows into cur[1..local_rows] (skip ghost row 0)
     MPI_Scatterv(
         compute_rank == 0 ? global_grid.data() : nullptr,
         send_counts.data(), send_offsets.data(), MPI_DOUBLE,
-        cur.data() + COLS,   // destination: row 1 onwards
+        cur.data() + COLS,   
         local_rows * COLS, MPI_DOUBLE,
         0, compute_comm
     );
-    // Copy to nxt as well
-    std::copy(cur.begin(), cur.end(), nxt.begin());
+    copy(cur.begin(), cur.end(), nxt.begin());
 
-    /* ── 4. Timestepping loop ─────────────────────────── */
     double t_start = MPI_Wtime();
     bool converged = false;
 
     for (int step = 0; step < cfg.steps && !converged; ++step) {
 
-        /* 4a. Ghost row exchange (chosen strategy) */
         if (cfg.mode == MODE_NONBLOCKING)
             exchange_ghosts_nonblocking(cur, local_rows, COLS,
                                         compute_rank, compute_size, compute_comm);
@@ -372,68 +344,61 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
             exchange_ghosts_blocking(cur, local_rows, COLS,
                                      compute_rank, compute_size, compute_comm);
 
-        /* 4b. Stencil update (interior cells only; boundary stays fixed) */
         double local_delta = compute_stencil(cur, nxt, local_rows, COLS);
 
-        /* 4c. Global convergence check via MPI_Allreduce (collective) */
         double global_delta = 0.0;
         MPI_Allreduce(&local_delta, &global_delta, 1,
                       MPI_DOUBLE, MPI_MAX, compute_comm);
 
         if (global_delta < CONVERGENCE_TOL) converged = true;
 
-        /* 4d. Swap buffers */
-        std::swap(cur, nxt);
+        swap(cur, nxt);
 
-        /* 4e. Progress report every 100 steps */
         if (compute_rank == 0 && step % 100 == 0)
-            std::cout << "  step " << std::setw(5) << step
-                      << "  max_delta = " << std::scientific << global_delta
+            cout << "  step " << setw(5) << step
+                      << "  max_delta = " << scientific << global_delta
                       << (converged ? "  [CONVERGED]" : "") << "\n";
     }
 
     double t_elapsed = MPI_Wtime() - t_start;
 
-    /* ── 5. Gather results back to rank 0 ────────────────── */
     if (compute_rank == 0)
         global_grid.assign(ROWS * COLS, 0.0);
 
     MPI_Gatherv(
-        cur.data() + COLS,          // source: skip ghost row 0
+        cur.data() + COLS,          
         local_rows * COLS, MPI_DOUBLE,
         compute_rank == 0 ? global_grid.data() : nullptr,
         send_counts.data(), send_offsets.data(), MPI_DOUBLE,
         0, compute_comm
     );
 
-    /* ── 6. Performance report (rank 0) ──────────────────── */
     if (compute_rank == 0) {
         ruler();
-        std::cout << "\nPerformance Summary\n";
-        std::cout << "  Elapsed time  : " << std::fixed << std::setprecision(4)
+        cout << "\nPerformance Summary\n";
+        cout << "  Elapsed time  : " << fixed << setprecision(4)
                   << t_elapsed << " s\n";
-        std::cout << "  Steps/second  : " << std::fixed << std::setprecision(1)
+        cout << "  Steps/second  : " << fixed <<  setprecision(1)
                   << cfg.steps / t_elapsed << "\n";
         double cells = (double)ROWS * COLS;
         double mcells_per_sec = (cells * cfg.steps) / (t_elapsed * 1e6);
-        std::cout << "  MCells/second : " << std::fixed << std::setprecision(2)
+        cout << "  MCells/second : " << fixed << setprecision(2)
                   << mcells_per_sec << "\n";
-        std::cout << "  Convergence   : " << (converged ? "YES" : "NO (max steps reached)") << "\n";
+        cout << "  Convergence   : " << (converged ? "YES" : "NO (max steps reached)") << "\n";
         ruler();
 
         if (cfg.save_output)
             save_csv(global_grid, ROWS, COLS, "heat_output.csv");
     }
 
-    /* ── 7. Timing stats across all ranks ────────────────── */
     double min_t, max_t, sum_t;
     MPI_Reduce(&t_elapsed, &min_t, 1, MPI_DOUBLE, MPI_MIN, 0, compute_comm);
     MPI_Reduce(&t_elapsed, &max_t, 1, MPI_DOUBLE, MPI_MAX, 0, compute_comm);
     MPI_Reduce(&t_elapsed, &sum_t, 1, MPI_DOUBLE, MPI_SUM, 0, compute_comm);
 
     if (compute_rank == 0) {
-        std::cout << "Per-rank timing (min/avg/max): "
-                  << std::fixed << std::setprecision(4)
+        cout << "Per-rank timing (min/avg/max): "
+                  << fixed << setprecision(4)
                   << min_t << " / " << sum_t / compute_size << " / " << max_t
                   << " s\n";
         ruler();
