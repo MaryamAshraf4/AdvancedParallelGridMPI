@@ -642,37 +642,107 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
         cfg.mode = MODE_DEADLOCK_DEMO;
         cfg.demo_deadlock = true;
     }
-    int compute_color = 0;
-    //int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
+    // int compute_color = 0;
+    // //int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
 
-    MPI_Comm compute_comm;
+    // MPI_Comm compute_comm;
 
-    MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm);
-    //MPI_Comm_split(MPI_COMM_WORLD, monitor_color, world_rank, &monitor_comm);
+    // MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm);
+    // //MPI_Comm_split(MPI_COMM_WORLD, monitor_color, world_rank, &monitor_comm);
 
-    int compute_rank, compute_size;
+    // int compute_rank, compute_size;
 
-    MPI_Comm_rank(compute_comm, &compute_rank);
-    MPI_Comm_size(compute_comm, &compute_size);
+    // MPI_Comm_rank(compute_comm, &compute_rank);
+    // MPI_Comm_size(compute_comm, &compute_size);
 
-    if (compute_rank == 0) {
+    // if (compute_rank == 0) {
+    //     ruler();
+    //     cout << " Heat Diffusion MPI Solver\n";
+    //     ruler();
+    // }
+
+    ///* if (cfg.demo_deadlock) {
+    //     demo_deadlock_scenario(compute_comm, compute_rank, compute_size, cfg.cols);
+    //     MPI_Barrier(compute_comm);
+    // }*/
+
+    // print_performance_header(compute_rank);
+
+    // run_solver(cfg, world_rank, world_size, compute_comm);
+    // //run_solver(cfg, world_rank, world_size, compute_comm, monitor_com);
+
+    // MPI_Comm_free(&compute_comm);
+
+    // //if (monitor_comm != MPI_COMM_NULL)
+    // //    MPI_Comm_free(&monitor_comm);
+    int color;
+
+    /* Rank 0 = monitor process
+    باقي الـ ranks = compute processes */
+
+    if (world_rank == 0)
+        color = 1;
+    else
+        color = 0;
+
+    MPI_Comm split_comm;
+
+    MPI_Comm_split(
+        MPI_COMM_WORLD,
+        color,
+        world_rank,
+        &split_comm
+    );
+
+    if (color == 0)
+    {
+
+
+        int compute_rank, compute_size;
+
+        MPI_Comm_rank(split_comm, &compute_rank);
+        MPI_Comm_size(split_comm, &compute_size);
+
+        if (compute_rank == 0) {
+            ruler();
+            cout << "Compute Group Started\n";
+            ruler();
+        }
+
+        // print_performance_header(compute_rank);
+
+        run_solver(cfg,
+            world_rank,
+            world_size,
+            split_comm);
+
+        MPI_Comm_free(&split_comm);
+
+
+    }
+    else
+    {
         ruler();
+
+        cout << " MONITOR GROUP\n";
+
         cout << " Heat Diffusion MPI Solver\n";
         ruler();
+
+        print_performance_header(world_rank);
+
+        cout << "[Monitor] Rank "
+            << world_rank
+            << " tracking execution statistics...\n";
+
+        cout << "[Monitor] Compute processes = "
+            << world_size - 1
+            << "\n";
+
+        ruler();
+
+        MPI_Comm_free(&split_comm);
+
     }
 
-   /* if (cfg.demo_deadlock) {
-        demo_deadlock_scenario(compute_comm, compute_rank, compute_size, cfg.cols);
-        MPI_Barrier(compute_comm);
-    }*/
-
-    print_performance_header(compute_rank);
-
-    run_solver(cfg, world_rank, world_size, compute_comm);
-    //run_solver(cfg, world_rank, world_size, compute_comm, monitor_com);
-
-    MPI_Comm_free(&compute_comm);
-
-    //if (monitor_comm != MPI_COMM_NULL)
-    //    MPI_Comm_free(&monitor_comm);
 }
