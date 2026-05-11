@@ -45,7 +45,7 @@
 #include <string>
 #include <vector>
 #include "Shared.h"
-
+using namespace std;
 /* ─────────────────────────────────────────────────────────────
    Constants & configuration
    ───────────────────────────────────────────────────────────── */
@@ -99,87 +99,214 @@ Config parse_args(int argc, char** argv)
    because MPI cannot buffer the data (exceeds eager limit).
    We run it with a timeout watchdog so it does not hang forever.
    ───────────────────────────────────────────────────────────── */
-void demo_deadlock_scenario(MPI_Comm comm, int rank, int size, int cols)
+//void demo_deadlock_scenario(MPI_Comm comm, int rank, int size, int cols)
+//{
+//    /* ── BROKEN version (deadlocks for large messages) ───── */
+//    if (rank == 0) {
+//        ruler();
+//        std::cout << "\n[DEADLOCK DEMO] Step 1: Broken code (would deadlock).\n";
+//        std::cout << "  Every rank calls MPI_Send BEFORE MPI_Recv.\n";
+//        std::cout << "  For large messages the send blocks forever because\n";
+//        std::cout << "  no receiver is ready – circular wait.\n\n";
+//        std::cout << "  Skipping actual execution to avoid hanging.\n";
+//        ruler();
+//    }
+//    MPI_Barrier(comm);
+//
+//    /*
+//     *  INTENTIONALLY BROKEN CODE – do NOT execute with large buffers:
+//     *
+//     *  int dest = (rank + 1) % size;
+//     *  int src  = (rank - 1 + size) % size;
+//     *  std::vector<double> send_buf(cols, (double)rank);
+//     *  std::vector<double> recv_buf(cols, 0.0);
+//     *
+//     *  // BUG: every rank sends first – circular deadlock!
+//     *  MPI_Send(send_buf.data(), cols, MPI_DOUBLE, dest, 0, comm);
+//     *  MPI_Recv(recv_buf.data(), cols, MPI_DOUBLE, src,  0, comm, MPI_STATUS_IGNORE);
+//     */
+//
+//    /* ── FIXED version 1: alternate send/recv order ──────── */
+//    if (rank == 0) {
+//        cout << "\n[DEADLOCK FIX 1] Alternate order: even ranks send first,\n";
+//        cout << "  odd ranks receive first – breaks the circular wait.\n\n";
+//    }
+//    MPI_Barrier(comm);
+//    {
+//        int dest = (rank + 1) % size;
+//        int src  = (rank - 1 + size) % size;
+//        vector<double> send_buf(cols, (double)rank);
+//        vector<double> recv_buf(cols, 0.0);
+//
+//        if (rank % 2 == 0) {
+//            MPI_Send(send_buf.data(), cols, MPI_DOUBLE, dest, 10, comm);
+//            MPI_Recv(recv_buf.data(), cols, MPI_DOUBLE, src,  10, comm, MPI_STATUS_IGNORE);
+//        } else {
+//            MPI_Recv(recv_buf.data(), cols, MPI_DOUBLE, src,  10, comm, MPI_STATUS_IGNORE);
+//            MPI_Send(send_buf.data(), cols, MPI_DOUBLE, dest, 10, comm);
+//        }
+//        std::cout << "  [rank " << rank << "] Fix-1 OK: received " << recv_buf[0]
+//                  << " from rank " << src << "\n";
+//    }
+//    MPI_Barrier(comm);
+//
+//    /* ── FIXED version 2: MPI_Sendrecv (atomic, cleanest) ── */
+//    if (rank == 0) {
+//        cout << "\n[DEADLOCK FIX 2] MPI_Sendrecv – single call handles both\n";
+//        cout << "  directions atomically; MPI manages ordering internally.\n\n";
+//    }
+//    MPI_Barrier(comm);
+//    {
+//        int dest = (rank + 1) % size;
+//        int src  = (rank - 1 + size) % size;
+//        vector<double> send_buf(cols, (double)rank * 10.0);
+//        vector<double> recv_buf(cols, 0.0);
+//
+//        MPI_Sendrecv(
+//            send_buf.data(), cols, MPI_DOUBLE, dest, 20,
+//            recv_buf.data(), cols, MPI_DOUBLE, src,  20,
+//            comm, MPI_STATUS_IGNORE
+//        );
+//        cout << "  [rank " << rank << "] Fix-2 OK: received " << recv_buf[0]
+//                  << " from rank " << src << "\n";
+//    }
+//    MPI_Barrier(comm);
+//
+//    /* ── FIXED version 3: non-blocking (used in main solver) */
+//    if (rank == 0) {
+//        cout << "\n[DEADLOCK FIX 3] MPI_Isend + MPI_Irecv – post all ops,\n";
+//        cout << "  then MPI_Waitall.  Used as the main strategy below.\n\n";
+//        ruler();
+//    }
+//    MPI_Barrier(comm);
+//}
+/* ═════════════════════════════════════════════════════════════
+DEADLOCK DEMONSTRATION INSIDE HEAT DIFFUSION
+═════════════════════════════════════════════════════════════
+In Heat Diffusion, each process must exchange boundary rows
+(ghost rows) with neighboring processes.
+
+DEADLOCK SCENARIO:
+If every process calls MPI_Send first for BOTH directions
+before any MPI_Recv, all processes may block forever.
+
+This is a realistic deadlock inside stencil computation.
+───────────────────────────────────────────────────────────── */
+void demo_deadlock_scenario(
+    vector<double>& local,
+    int local_rows,
+    int cols,
+    MPI_Comm comm,
+    int rank,
+    int size)
 {
-    /* ── BROKEN version (deadlocks for large messages) ───── */
+    const int TAG_DOWN = 1;
+    const int TAG_UP = 2;
+
+    double* top_ghost = local.data();
+    double* bot_ghost = local.data() + (local_rows + 1) * cols;
+
+    double* first_real = local.data() + cols;
+    double* last_real = local.data() + local_rows * cols;
+
+    /* ─────────────────────────────────────────────────────
+       BROKEN VERSION
+       ───────────────────────────────────────────────────── */
     if (rank == 0) {
         ruler();
-        std::cout << "\n[DEADLOCK DEMO] Step 1: Broken code (would deadlock).\n";
-        std::cout << "  Every rank calls MPI_Send BEFORE MPI_Recv.\n";
-        std::cout << "  For large messages the send blocks forever because\n";
-        std::cout << "  no receiver is ready – circular wait.\n\n";
-        std::cout << "  Skipping actual execution to avoid hanging.\n";
+        cout << "\n[DEADLOCK DEMO - HEAT DIFFUSION]\n";
+        cout << "Every process sends boundary rows first.\n";
+        cout << "No process is receiving yet.\n";
+        cout << "This creates circular wait deadlock.\n\n";
         ruler();
     }
+
     MPI_Barrier(comm);
 
-    /*
-     *  INTENTIONALLY BROKEN CODE – do NOT execute with large buffers:
-     *
-     *  int dest = (rank + 1) % size;
-     *  int src  = (rank - 1 + size) % size;
-     *  std::vector<double> send_buf(cols, (double)rank);
-     *  std::vector<double> recv_buf(cols, 0.0);
-     *
-     *  // BUG: every rank sends first – circular deadlock!
-     *  MPI_Send(send_buf.data(), cols, MPI_DOUBLE, dest, 0, comm);
-     *  MPI_Recv(recv_buf.data(), cols, MPI_DOUBLE, src,  0, comm, MPI_STATUS_IGNORE);
-     */
+    //Broken Code
+     
+      if (rank > 0)
+      MPI_Send(first_real, cols, MPI_DOUBLE,
+                rank - 1, TAG_DOWN, comm);
+     
+      if (rank < size - 1)
+          MPI_Send(last_real, cols, MPI_DOUBLE,
+                   rank + 1, TAG_UP, comm);
+     
+      if (rank > 0)
+         MPI_Recv(top_ghost, cols, MPI_DOUBLE,
+                   rank - 1, TAG_UP, comm,
+                   MPI_STATUS_IGNORE);
+     
+     if (rank < size - 1)
+          MPI_Recv(bot_ghost, cols, MPI_DOUBLE,
+                   rank + 1, TAG_DOWN, comm,
+                   MPI_STATUS_IGNORE);
+     
 
-    /* ── FIXED version 1: alternate send/recv order ──────── */
     if (rank == 0) {
-        std::cout << "\n[DEADLOCK FIX 1] Alternate order: even ranks send first,\n";
-        std::cout << "  odd ranks receive first – breaks the circular wait.\n\n";
-    }
-    MPI_Barrier(comm);
-    {
-        int dest = (rank + 1) % size;
-        int src  = (rank - 1 + size) % size;
-        std::vector<double> send_buf(cols, (double)rank);
-        std::vector<double> recv_buf(cols, 0.0);
-
-        if (rank % 2 == 0) {
-            MPI_Send(send_buf.data(), cols, MPI_DOUBLE, dest, 10, comm);
-            MPI_Recv(recv_buf.data(), cols, MPI_DOUBLE, src,  10, comm, MPI_STATUS_IGNORE);
-        } else {
-            MPI_Recv(recv_buf.data(), cols, MPI_DOUBLE, src,  10, comm, MPI_STATUS_IGNORE);
-            MPI_Send(send_buf.data(), cols, MPI_DOUBLE, dest, 10, comm);
-        }
-        std::cout << "  [rank " << rank << "] Fix-1 OK: received " << recv_buf[0]
-                  << " from rank " << src << "\n";
-    }
-    MPI_Barrier(comm);
-
-    /* ── FIXED version 2: MPI_Sendrecv (atomic, cleanest) ── */
-    if (rank == 0) {
-        std::cout << "\n[DEADLOCK FIX 2] MPI_Sendrecv – single call handles both\n";
-        std::cout << "  directions atomically; MPI manages ordering internally.\n\n";
-    }
-    MPI_Barrier(comm);
-    {
-        int dest = (rank + 1) % size;
-        int src  = (rank - 1 + size) % size;
-        std::vector<double> send_buf(cols, (double)rank * 10.0);
-        std::vector<double> recv_buf(cols, 0.0);
-
-        MPI_Sendrecv(
-            send_buf.data(), cols, MPI_DOUBLE, dest, 20,
-            recv_buf.data(), cols, MPI_DOUBLE, src,  20,
-            comm, MPI_STATUS_IGNORE
-        );
-        std::cout << "  [rank " << rank << "] Fix-2 OK: received " << recv_buf[0]
-                  << " from rank " << src << "\n";
-    }
-    MPI_Barrier(comm);
-
-    /* ── FIXED version 3: non-blocking (used in main solver) */
-    if (rank == 0) {
-        std::cout << "\n[DEADLOCK FIX 3] MPI_Isend + MPI_Irecv – post all ops,\n";
-        std::cout << "  then MPI_Waitall.  Used as the main strategy below.\n\n";
+        cout << "\nBroken version skipped to avoid hanging.\n";
         ruler();
     }
+
     MPI_Barrier(comm);
+
+    /* ─────────────────────────────────────────────────────
+       FIXED VERSION
+       ─────────────────────────────────────────────────────
+       Use non-blocking communication:
+       - Post receives first
+       - Then sends
+       - Finish with MPI_Waitall
+    */
+    if (rank == 0) {
+        cout << "\n[DEADLOCK FIX - NONBLOCKING]\n";
+        cout << "Using MPI_Isend + MPI_Irecv for ghost rows.\n";
+        cout << "This avoids circular waiting.\n\n";
+    }
+
+    MPI_Barrier(comm);
+
+    MPI_Request reqs[4];
+    int nreqs = 0;
+
+    /* Post receives first */
+    if (rank > 0)
+        MPI_Irecv(top_ghost, cols, MPI_DOUBLE,
+            rank - 1, TAG_UP,
+            comm, &reqs[nreqs++]);
+
+    if (rank < size - 1)
+        MPI_Irecv(bot_ghost, cols, MPI_DOUBLE,
+            rank + 1, TAG_DOWN,
+            comm, &reqs[nreqs++]);
+
+    /* Then sends */
+    if (rank > 0)
+        MPI_Isend(first_real, cols, MPI_DOUBLE,
+            rank - 1, TAG_DOWN,
+            comm, &reqs[nreqs++]);
+
+    if (rank < size - 1)
+        MPI_Isend(last_real, cols, MPI_DOUBLE,
+            rank + 1, TAG_UP,
+            comm, &reqs[nreqs++]);
+
+    MPI_Waitall(nreqs, reqs, MPI_STATUSES_IGNORE);
+
+    cout << "[rank " << rank
+        << "] ghost-row exchange completed successfully.\n";
+
+    MPI_Barrier(comm);
+
+    if (rank == 0) {
+        ruler();
+        cout << "Deadlock-free Heat Diffusion communication completed.\n";
+        ruler();
+    }
+
 }
+
 
 /* ═════════════════════════════════════════════════════════════
    GHOST ROW EXCHANGE  (three variants)
@@ -306,6 +433,7 @@ void run_solver(const Config& cfg, int rank, int size,
     MPI_Comm_size(compute_comm, &compute_size);
     MPI_Comm_rank(compute_comm, &compute_rank);
 
+
     std::vector<int> row_counts(compute_size), row_offsets(compute_size);
     int base = ROWS / compute_size;
     int rem  = ROWS % compute_size;
@@ -332,8 +460,20 @@ void run_solver(const Config& cfg, int rank, int size,
     /* ── 2. Allocate local buffer (+2 ghost rows) ─────── */
     // Layout: [ghost_top | row_0 .. row_{lr-1} | ghost_bot]
     int buf_rows = local_rows + 2;
-    std::vector<double> cur(buf_rows * COLS, 0.0);
-    std::vector<double> nxt(buf_rows * COLS, 0.0);
+    vector<double> cur(buf_rows * COLS, 0.0);
+    vector<double> nxt(buf_rows * COLS, 0.0);
+    if (cfg.demo_deadlock) {
+        demo_deadlock_scenario(
+            cur,
+            local_rows,
+            COLS,
+            compute_comm,
+            compute_rank,
+            compute_size
+        );
+
+        MPI_Barrier(compute_comm);
+    }
 
     /* ── 3. Initialise and scatter the global grid ────── */
     // Rank 0 builds the full grid then scatterv's row slabs.
@@ -489,10 +629,10 @@ void run_heat_diffusion(int argc, char** argv)
         ruler();
     }
 
-    if (cfg.demo_deadlock) {
+   /* if (cfg.demo_deadlock) {
         demo_deadlock_scenario(compute_comm, compute_rank, compute_size, cfg.cols);
         MPI_Barrier(compute_comm);
-    }
+    }*/
 
     print_performance_header(compute_rank);
 
