@@ -381,7 +381,7 @@ void exchange_ghosts_blocking(
 }
 
 /* ═════════════════════════════════════════════════════════════
-   STENCIL COMPUTATION  (5-point finite difference)
+   STENCIL COMPUTATION  (5-point averaging stencil)
    ═════════════════════════════════════════════════════════════
    local layout (with ghost rows):
      row 0           = top ghost
@@ -397,7 +397,7 @@ double compute_stencil(
     std::vector<double>&       nxt,
     int local_rows, int cols)
 {
-    const double r = ALPHA * DT / (DX * DX);
+    //const double r = ALPHA * DT / (DX * DX);
     double max_delta = 0.0;
 
     for (int i = 1; i <= local_rows; ++i) {
