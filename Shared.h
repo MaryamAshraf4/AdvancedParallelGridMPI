@@ -2,13 +2,10 @@
 
 #include <vector>
 #include <string>
+using namespace std;
 
-void load_csv(const std::string& filename,
-    std::vector<double>& data,
-    int rows, int cols);
+void load_csv(const string& filename, vector<double>& data, int rows, int cols);
 
-void save_csv(const std::vector<double>& data,
-    int rows, int cols,
-    const std::string& filename);
+void save_csv(const vector<double>& data, int rows, int cols, const string& filename);
 
 void ruler(int width = 60);

@@ -4,6 +4,7 @@
 #include "HeatDiffusion.h"
 //#include "matrix_multiplication.h"
 
+using namespace std;
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -16,20 +17,20 @@ int main(int argc, char** argv)
 
     if (rank == 0)
     {
-        std::cout << "\n========== Parallel MPI Project ==========\n";
-        std::cout << "1. Heat Diffusion\n";
-        std::cout << "2. Matrix Multiplication\n";
-        std::cout << "Choose algorithm: ";
-        std::cin >> choice;
+        cout << "\n========== Parallel MPI Project ==========\n";
+        cout << "1. Heat Diffusion\n";
+        cout << "2. Matrix Multiplication\n";
+        cout << "Choose algorithm: ";
+        cin >> choice;
 
         if (choice == 1)
         {
-            std::cout << "\nChoose communication strategy:\n";
-            std::cout << "1. Blocking\n";
-            std::cout << "2. Non-blocking\n";
-            std::cout << "3. Deadlock Demo\n";
-            std::cout << "Choice: ";
-            std::cin >> comm_choice;
+            cout << "\nChoose communication strategy:\n";
+            cout << "1. Blocking\n";
+            cout << "2. Non-blocking\n";
+            cout << "3. Deadlock Demo\n";
+            cout << "Choice: ";
+            cin >> comm_choice;
         }
     }
 
@@ -38,8 +39,7 @@ int main(int argc, char** argv)
 
     if (rank == 0)
     {
-        std::cout << "choice=" << choice
-            << " - comm_choice=" << comm_choice << "\n";
+        cout << "choice=" << choice << " - comm_choice=" << comm_choice << "\n";
     }
 
     switch (choice)
@@ -54,7 +54,7 @@ int main(int argc, char** argv)
 
     default:
         if (rank == 0)
-            std::cout << "Invalid choice\n";
+            cout << "Invalid choice\n";
     }
 
     MPI_Finalize();

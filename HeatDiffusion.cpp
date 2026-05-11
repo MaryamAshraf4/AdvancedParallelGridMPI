@@ -72,24 +72,52 @@ Config parse_args(int argc, char** argv)
 {
     Config cfg;
     for (int i = 1; i < argc; ++i) {
-        std::string a = argv[i];
-        if (a == "--rows"   && i+1 < argc) cfg.rows  = std::stoi(argv[++i]);
-        else if (a == "--cols"   && i+1 < argc) cfg.cols  = std::stoi(argv[++i]);
-        else if (a == "--steps"  && i+1 < argc) cfg.steps = std::stoi(argv[++i]);
-        else if (a == "--no-save")               cfg.save_output   = false;
-        else if (a == "--demo-deadlock")         cfg.demo_deadlock = true;
+
+        string a = argv[i];
+
+        if (a == "--rows" && i + 1 < argc) {
+            cfg.rows = stoi(argv[++i]);
+            if (cfg.rows <= 0)
+            {
+                cerr << "Rows must be > 0\n";
+                MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+        }
+
+        else if (a == "--cols" && i + 1 < argc) {
+            cfg.cols = stoi(argv[++i]);
+            if (cfg.cols <= 0)
+            {
+                cerr << "Cols must be > 0\n";
+                MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+        }
+
+        else if (a == "--steps" && i + 1 < argc) {
+            cfg.steps = stoi(argv[++i]);
+            if (cfg.steps <= 0)
+            {
+                cerr << "Steps must be > 0\n";
+                MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+        }
+
+        else if (a == "--no-save")     
+            cfg.save_output = false;
+
+        else if (a == "--demo-deadlock")    
+            cfg.demo_deadlock = true;
+
         else if (a == "--mode" && i+1 < argc) {
-            std::string m = argv[++i];
-            if      (m == "blocking")    cfg.mode = MODE_BLOCKING;
-            else if (m == "nonblocking") cfg.mode = MODE_NONBLOCKING;
+            string m = argv[++i];
+            if (m == "blocking")  
+                cfg.mode = MODE_BLOCKING;
+            else if (m == "nonblocking") 
+                cfg.mode = MODE_NONBLOCKING;
         }
     }
     return cfg;
 }
-
-
-
-
 
 /* ═════════════════════════════════════════════════════════════
    DEADLOCK DEMONSTRATION
@@ -192,13 +220,7 @@ before any MPI_Recv, all processes may block forever.
 
 This is a realistic deadlock inside stencil computation.
 ───────────────────────────────────────────────────────────── */
-void demo_deadlock_scenario(
-    vector<double>& local,
-    int local_rows,
-    int cols,
-    MPI_Comm comm,
-    int rank,
-    int size)
+void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MPI_Comm comm, int rank, int size)
 {
     const int TAG_DOWN = 1;
     const int TAG_UP = 2;
@@ -313,11 +335,7 @@ void demo_deadlock_scenario(
    ═════════════════════════════════════════════════════════════ */
 
 /* Strategy A: Non-blocking (overlaps comms with computation) */
-void exchange_ghosts_nonblocking(
-    std::vector<double>& local,
-    int local_rows, int cols,
-    int rank, int size,
-    MPI_Comm comm)
+void exchange_ghosts_nonblocking( vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
 {
     MPI_Request reqs[4];
     int nreqs = 0;
@@ -345,11 +363,7 @@ void exchange_ghosts_nonblocking(
 }
 
 /* Strategy B: Blocking (simpler, but potential deadlock if not ordered) */
-void exchange_ghosts_blocking(
-    std::vector<double>& local,
-    int local_rows, int cols,
-    int rank, int size,
-    MPI_Comm comm)
+void exchange_ghosts_blocking( vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
 {
     const int TAG_DOWN = 1, TAG_UP = 2;
 
@@ -392,10 +406,7 @@ void exchange_ghosts_blocking(
        + alpha*dt/dx^2 * (u[i-1][j] + u[i+1][j] + u[i][j-1] + u[i][j+1]
                            - 4*u[i][j])
    ───────────────────────────────────────────────────────────── */
-double compute_stencil(
-    const std::vector<double>& cur,
-    std::vector<double>&       nxt,
-    int local_rows, int cols)
+double compute_stencil( const vector<double>& cur, vector<double>& nxt, int local_rows, int cols)
 {
     //const double r = ALPHA * DT / (DX * DX);
     double max_delta = 0.0;
@@ -422,8 +433,7 @@ double compute_stencil(
 /* ═════════════════════════════════════════════════════════════
    MAIN SOLVER
    ═════════════════════════════════════════════════════════════ */
-void run_solver(const Config& cfg, int rank, int size,
-                MPI_Comm compute_comm)
+void run_solver(const Config& cfg, int rank, int size, MPI_Comm compute_comm)
 {
     const int ROWS = cfg.rows;
     const int COLS = cfg.cols;
@@ -434,7 +444,7 @@ void run_solver(const Config& cfg, int rank, int size,
     MPI_Comm_rank(compute_comm, &compute_rank);
 
 
-    std::vector<int> row_counts(compute_size), row_offsets(compute_size);
+    vector<int> row_counts(compute_size), row_offsets(compute_size);
     int base = ROWS / compute_size;
     int rem  = ROWS % compute_size;
     for (int p = 0; p < compute_size; ++p) {
@@ -445,28 +455,28 @@ void run_solver(const Config& cfg, int rank, int size,
 
     if (compute_rank == 0) {
         ruler();
-        std::cout << "Grid: " << ROWS << " x " << COLS
+        cout << "Grid: " << ROWS << " x " << COLS
                   << "  |  Processes: " << compute_size
                   << "  |  Steps: " << cfg.steps << "\n";
-        std::cout << "Mode: ";
+        cout << "Mode: ";
 
         switch (cfg.mode)
         {
         case MODE_BLOCKING:
-            std::cout << "blocking";
+            cout << "blocking";
             break;
         case MODE_NONBLOCKING:
-            std::cout << "non-blocking";
+            cout << "non-blocking";
             break;
         case MODE_DEADLOCK_DEMO:
-            std::cout << "deadlock-demo";
+            cout << "deadlock-demo";
             break;
         }
-        std::cout << "\n";
-        std::cout << "Row distribution: ";
+        cout << "\n";
+        cout << "Row distribution: ";
         for (int p = 0; p < compute_size; ++p)
-            std::cout << "P" << p << "=" << row_counts[p] << " ";
-        std::cout << "\n";
+            cout << "P" << p << "=" << row_counts[p] << " ";
+        cout << "\n";
         ruler();
     }
 
@@ -617,7 +627,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
 
     if (world_size < 2) {
         if (world_rank == 0)
-            std::cerr << "ERROR: This program requires at least 2 MPI processes.\n";
+            cerr << "ERROR: This program requires at least 2 MPI processes.\n";
         return;
     }
 
@@ -647,7 +657,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
 
     if (compute_rank == 0) {
         ruler();
-        std::cout << " Heat Diffusion MPI Solver\n";
+        cout << " Heat Diffusion MPI Solver\n";
         ruler();
     }
 

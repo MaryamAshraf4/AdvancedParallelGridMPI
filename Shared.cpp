@@ -5,33 +5,32 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+using namespace std;
 
-void load_csv(const std::string& filename,
-    std::vector<double>& data,
-    int rows, int cols)
+void load_csv(const string& filename, vector<double>& data, int rows, int cols)
 {
-    std::ifstream file(filename);
+    ifstream file(filename);
 
     if (!file) {
-        std::cerr << "Cannot open file: " << filename << "\n";
+        cerr << "Cannot open file: " << filename << "\n";
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     data.assign(rows * cols, 0.0);
 
-    std::string line;
+    string line;
     int r = 0;
 
-    while (std::getline(file, line) && r < rows)
+    while (getline(file, line) && r < rows)
     {
-        std::stringstream ss(line);
-        std::string cell;
+        stringstream ss(line);
+        string cell;
 
         int c = 0;
 
-        while (std::getline(ss, cell, ',') && c < cols)
+        while (getline(ss, cell, ',') && c < cols)
         {
-            data[r * cols + c] = std::stod(cell);
+            data[r * cols + c] = stod(cell);
             c++;
         }
 
@@ -39,14 +38,12 @@ void load_csv(const std::string& filename,
     }
 }
 
-void save_csv(const std::vector<double>& data,
-    int rows, int cols,
-    const std::string& filename)
+void save_csv(const vector<double>& data, int rows, int cols, const string& filename)
 {
-    std::ofstream f(filename);
+    ofstream f(filename);
 
     if (!f) {
-        std::cerr << "Cannot open " << filename << "\n";
+        cerr << "Cannot open " << filename << "\n";
         return;
     }
 
@@ -54,8 +51,7 @@ void save_csv(const std::vector<double>& data,
     {
         for (int c = 0; c < cols; ++c)
         {
-            f << std::fixed << std::setprecision(4)
-                << data[r * cols + c];
+            f << fixed << setprecision(4) << data[r * cols + c];
 
             if (c < cols - 1)
                 f << ",";
@@ -64,10 +60,10 @@ void save_csv(const std::vector<double>& data,
         f << '\n';
     }
 
-    std::cout << "Saved to " << filename << "\n";
+    cout << "Saved to " << filename << "\n";
 }
 
 void ruler(int width)
 {
-    std::cout << std::string(width, '-') << '\n';
+    cout << string(width, '-') << '\n';
 }
