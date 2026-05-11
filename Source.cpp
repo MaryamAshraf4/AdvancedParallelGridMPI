@@ -27,7 +27,6 @@ int main(int argc, char** argv)
         cout << "\nChoose communication strategy:\n";
         cout << "1. Blocking\n";
         cout << "2. Non-blocking\n";
-        cout << "3. Deadlock Demo\n";
         cout << "Choice: ";
         cin >> comm_choice;
     }

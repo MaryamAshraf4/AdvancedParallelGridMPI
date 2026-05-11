@@ -433,11 +433,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
         cfg.mode = MODE_BLOCKING;
     else if (comm_choice == 2)
         cfg.mode = MODE_NONBLOCKING;
-    else if (comm_choice == 3)
-    {
-        cfg.mode = MODE_DEADLOCK_DEMO;
-        cfg.demo_deadlock = true;
-    }
+    
 
     int compute_color = 0;
     MPI_Comm compute_comm;
@@ -448,7 +444,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
     if (compute_rank == 0)
     {
         ruler(); cout
-            << " Heat Diffusion MPI Solver\n"; ruler();
+            << " Heat Diffusion MPI Solver\n";
     }
     print_performance_header(compute_rank);
     run_solver(cfg, compute_comm);
