@@ -502,7 +502,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
             ruler();
         }
 
-         print_performance_header(compute_rank);
+        // print_performance_header(compute_rank);
 
         run_solver(cfg,
             world_rank,
