@@ -23,7 +23,6 @@ int main(int argc, char** argv)
         std::cin >> choice;
     }
 
-    // broadcast choice to all processes
     MPI_Bcast(&choice, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     switch (choice)

@@ -44,6 +44,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "Shared.h"
 
 /* ─────────────────────────────────────────────────────────────
    Constants & configuration
@@ -86,64 +87,9 @@ Config parse_args(int argc, char** argv)
     return cfg;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Helper: initialise grid with boundary conditions
-   Hot boundary on top & bottom walls; cold interior.
-   ───────────────────────────────────────────────────────────── */
-void load_csv(const std::string& filename,
-    std::vector<double>& data,
-    int rows, int cols)
-{
-    std::ifstream file(filename);
-    if (!file) {
-        std::cerr << "Cannot open file: " << filename << "\n";
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
 
-    data.assign(rows * cols, 0.0);
 
-    std::string line;
-    int r = 0;
 
-    while (std::getline(file, line) && r < rows)
-    {
-        std::stringstream ss(line);
-        std::string cell;
-        int c = 0;
-
-        while (std::getline(ss, cell, ',') && c < cols)
-        {
-            data[r * cols + c] = std::stod(cell);
-            c++;
-        }
-        r++;
-    }
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Helper: save grid to CSV (rank 0 only, after Gatherv)
-   ───────────────────────────────────────────────────────────── */
-void save_csv(const std::vector<double>& grid, int rows, int cols,
-              const std::string& filename)
-{
-    std::ofstream f(filename);
-    if (!f) { std::cerr << "Cannot open " << filename << "\n"; return; }
-    for (int r = 0; r < rows; ++r) {
-        for (int c = 0; c < cols; ++c) {
-            f << std::fixed << std::setprecision(4) << grid[r*cols+c];
-            if (c < cols-1) f << ',';
-        }
-        f << '\n';
-    }
-    std::cout << "[rank 0] Grid saved to " << filename << "\n";
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Helper: print a simple ruler line
-   ───────────────────────────────────────────────────────────── */
-void ruler(int width = 60) {
-    std::cout << std::string(width, '-') << '\n';
-}
 
 /* ═════════════════════════════════════════════════════════════
    DEADLOCK DEMONSTRATION
@@ -504,13 +450,6 @@ void print_performance_header(int rank)
 {
     if (rank != 0) return;
     ruler(70);
-    std::cout << "BENCHMARK MODE: run with different -np values and compare\n";
-    std::cout << "Recommended runs:\n";
-    std::cout << "  mpirun -np 1 ./heat_diffusion --rows 1024 --cols 1024 --steps 500 --no-save\n";
-    std::cout << "  mpirun -np 2 ./heat_diffusion --rows 1024 --cols 1024 --steps 500 --no-save\n";
-    std::cout << "  mpirun -np 4 ./heat_diffusion --rows 1024 --cols 1024 --steps 500 --no-save\n";
-    std::cout << "  mpirun -np 8 ./heat_diffusion --rows 1024 --cols 1024 --steps 500 --no-save\n";
-    std::cout << "Compare the MCells/second and elapsed time values.\n";
     ruler(70);
 }
 
