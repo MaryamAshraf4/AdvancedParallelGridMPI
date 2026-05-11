@@ -9,19 +9,15 @@
 #include <vector>
 using namespace std;
 
-/* ═════════════════════════════════════════════════════════════
-   CONFIGURATION
-   ═════════════════════════════════════════════════════════════ */
 
-enum MatCommMode { MAT_BLOCKING, MAT_NONBLOCKING, MAT_DEADLOCK_DEMO };
+enum MatCommMode { MAT_BLOCKING, MAT_NONBLOCKING};
 
 struct MatConfig {
-    int         M = 512;   // rows of A  (and C)
-    int         K = 512;   // cols of A  / rows of B
-    int         N = 512;   // cols of B  (and C)
+    int         M = 512; 
+    int         K = 512;
+    int         N = 512;
     MatCommMode mode = MAT_NONBLOCKING;
     bool        save_output = true;
-    bool        verify = false; // cheap correctness check (small matrices only)
 };
 
 static MatConfig parse_args(int argc, char** argv)
@@ -43,23 +39,14 @@ static MatConfig parse_args(int argc, char** argv)
             if (cfg.N <= 0) { cerr << "N must be > 0\n"; MPI_Abort(MPI_COMM_WORLD, 1); }
         }
         else if (a == "--no-save")  cfg.save_output = false;
-        else if (a == "--verify")   cfg.verify = true;
     }
     return cfg;
 }
 
-/* ═════════════════════════════════════════════════════════════
-   DEADLOCK DEMO
-   Mirrors the heat-diffusion deadlock demo:
-   shows a broken send-before-receive pattern on rank pairs,
-   then fixes it with non-blocking calls.
-   ═════════════════════════════════════════════════════════════ */
+
 static void demo_deadlock_scenario(int rank, int size, MPI_Comm comm,
     int N, const vector<double>& local_row_block)
 {
-    // Each rank will try to exchange its local block with rank+1 (or rank-1).
-    // The "broken" version has every rank MPI_Send before MPI_Recv → deadlock.
-
     const int TAG = 10;
     int partner = (rank % 2 == 0) ? rank + 1 : rank - 1;
     bool has_partner = (partner >= 0 && partner < size);
@@ -77,14 +64,12 @@ static void demo_deadlock_scenario(int rank, int size, MPI_Comm comm,
     }
     MPI_Barrier(comm);
 
-    // ── BROKEN (skipped to avoid hanging) ──────────────────────
     if (rank == 0) {
         cout << "\nBroken version skipped to avoid hanging.\n";
         ruler();
     }
     MPI_Barrier(comm);
 
-    // ── FIXED: non-blocking ─────────────────────────────────────
     if (rank == 0) {
         cout << "\n[DEADLOCK FIX - NONBLOCKING]\n";
         cout << "Using MPI_Isend + MPI_Irecv for row-block exchange.\n";
@@ -113,9 +98,7 @@ static void demo_deadlock_scenario(int rank, int size, MPI_Comm comm,
     }
 }
 
-/* ═════════════════════════════════════════════════════════════
-   ROW DISTRIBUTION HELPERS
-   ═════════════════════════════════════════════════════════════ */
+
 static void build_distribution(int total_rows, int size,
     vector<int>& counts, vector<int>& offsets)
 {
@@ -129,12 +112,7 @@ static void build_distribution(int total_rows, int size,
     }
 }
 
-/* ═════════════════════════════════════════════════════════════
-   LOCAL MULTIPLY  –  C_local = A_local * B
-   A_local : local_rows × K
-   B        : K × N  (every rank holds a full copy)
-   C_local  : local_rows × N
-   ═════════════════════════════════════════════════════════════ */
+
 static void local_multiply(const vector<double>& A_local,
     const vector<double>& B,
     vector<double>& C_local,
@@ -149,13 +127,7 @@ static void local_multiply(const vector<double>& A_local,
         }
 }
 
-/* ═════════════════════════════════════════════════════════════
-   SCATTER / GATHER WRAPPERS
-   Blocking and non-blocking flavours keep the same interface so
-   the solver can pick between them via the comm_choice flag.
-   ═════════════════════════════════════════════════════════════ */
 
-   // Scatter rows of A from rank 0 to all ranks (blocking Scatterv).
 static void scatter_A_blocking(const vector<double>& global_A,
     vector<double>& local_A,
     int local_rows, int K,
@@ -163,7 +135,7 @@ static void scatter_A_blocking(const vector<double>& global_A,
     const vector<int>& send_offsets,
     int rank, MPI_Comm comm)
 {
-    (void)rank; // used implicitly via MPI
+    (void)rank;
     MPI_Scatterv(
         global_A.empty() ? nullptr : global_A.data(),
         send_counts.data(), send_offsets.data(), MPI_DOUBLE,
@@ -172,7 +144,6 @@ static void scatter_A_blocking(const vector<double>& global_A,
     );
 }
 
-// Non-blocking scatter: rank 0 Isend's each slice; every rank Irecv's its slice.
 static void scatter_A_nonblocking(const vector<double>& global_A,
     vector<double>& local_A,
     int local_rows, int K,
@@ -200,7 +171,6 @@ static void scatter_A_nonblocking(const vector<double>& global_A,
         MPI_Waitall(size, reqs.data(), MPI_STATUSES_IGNORE);
 }
 
-// Gather C rows back to rank 0 (blocking Gatherv).
 static void gather_C_blocking(const vector<double>& local_C,
     vector<double>& global_C,
     int local_rows, int N,
@@ -217,7 +187,6 @@ static void gather_C_blocking(const vector<double>& local_C,
     );
 }
 
-// Non-blocking gather: every rank Isend's its result; rank 0 Irecv's all.
 static void gather_C_nonblocking(const vector<double>& local_C,
     vector<double>& global_C,
     int local_rows, int N,
@@ -242,9 +211,7 @@ static void gather_C_nonblocking(const vector<double>& local_C,
     MPI_Wait(&send_req, MPI_STATUS_IGNORE);
 }
 
-/* ═════════════════════════════════════════════════════════════
-   MAIN SOLVER
-   ═════════════════════════════════════════════════════════════ */
+
 static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
 {
     int rank, size;
@@ -253,12 +220,11 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
 
     const int M = cfg.M, K = cfg.K, N = cfg.N;
 
-    // ── 1. Row distribution for A and C ──────────────────────
+  
     vector<int> row_counts, row_offsets;
     build_distribution(M, size, row_counts, row_offsets);
     int local_rows = row_counts[rank];
 
-    // Element-level counts/offsets for Scatterv / Gatherv
     vector<int> send_counts(size), send_offsets(size);
     vector<int> recv_counts(size), recv_offsets(size);
     for (int p = 0; p < size; ++p) {
@@ -277,7 +243,6 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
         switch (cfg.mode) {
         case MAT_BLOCKING:      cout << "blocking\n";      break;
         case MAT_NONBLOCKING:   cout << "non-blocking\n";  break;
-        case MAT_DEADLOCK_DEMO: cout << "deadlock-demo\n"; break;
         }
         cout << "Row distribution   : ";
         for (int p = 0; p < size; ++p)
@@ -286,7 +251,6 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
         ruler();
     }
 
-    // ── 2. Allocate buffers ───────────────────────────────────
     vector<double> global_A, global_C;
     vector<double> B(K * N, 0.0);
 
@@ -300,19 +264,8 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
     vector<double> local_A(local_rows * K, 0.0);
     vector<double> local_C(local_rows * N, 0.0);
 
-    // ── 3. Broadcast B to all ranks ───────────────────────────
     MPI_Bcast(B.data(), K * N, MPI_DOUBLE, 0, compute_comm);
 
-    // ── 4. Deadlock demo (if requested) ──────────────────────
-    if (cfg.mode == MAT_DEADLOCK_DEMO) {
-        // Populate local_A with dummy data for the demo exchange
-        local_A.assign(local_rows * K, (double)rank);
-        demo_deadlock_scenario(rank, size, compute_comm, N, local_A);
-        MPI_Barrier(compute_comm);
-        return; // skip actual computation in demo mode
-    }
-
-    // ── 5. Scatter A rows ─────────────────────────────────────
     double t_start = MPI_Wtime();
 
     if (cfg.mode == MAT_NONBLOCKING)
@@ -322,10 +275,8 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
         scatter_A_blocking(global_A, local_A, local_rows, K,
             send_counts, send_offsets, rank, compute_comm);
 
-    // ── 6. Local multiply ────────────────────────────────────
     local_multiply(local_A, B, local_C, local_rows, K, N);
 
-    // ── 7. Gather C rows ─────────────────────────────────────
     if (cfg.mode == MAT_NONBLOCKING)
         gather_C_nonblocking(local_C, global_C, local_rows, N,
             recv_counts, recv_offsets, rank, size, compute_comm);
@@ -335,14 +286,13 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
 
     double t_elapsed = MPI_Wtime() - t_start;
 
-    // ── 8. Performance report ─────────────────────────────────
     double min_t, max_t, sum_t;
     MPI_Reduce(&t_elapsed, &min_t, 1, MPI_DOUBLE, MPI_MIN, 0, compute_comm);
     MPI_Reduce(&t_elapsed, &max_t, 1, MPI_DOUBLE, MPI_MAX, 0, compute_comm);
     MPI_Reduce(&t_elapsed, &sum_t, 1, MPI_DOUBLE, MPI_SUM, 0, compute_comm);
 
     if (rank == 0) {
-        double flops = 2.0 * M * K * N;   // 2 flops per multiply-add
+        double flops = 2.0 * M * K * N;
         double gflops = flops / (t_elapsed * 1e9);
 
         ruler();
@@ -356,33 +306,11 @@ static void run_solver(const MatConfig& cfg, MPI_Comm compute_comm)
             << min_t << " / " << sum_t / size << " / " << max_t << " s\n";
         ruler();
 
-        // ── 9. Optional verification (small matrices) ─────────
-        if (cfg.verify && M <= 64 && K <= 64 && N <= 64) {
-            // Re-compute serial result and compare
-            vector<double> C_ref(M * N, 0.0);
-            for (int i = 0; i < M; ++i)
-                for (int j = 0; j < N; ++j)
-                    for (int k = 0; k < K; ++k)
-                        C_ref[i * N + j] += global_A[i * K + k] * B[k * N + j];
-
-            double max_err = 0.0;
-            for (int idx = 0; idx < M * N; ++idx)
-                max_err = max(max_err, fabs(global_C[idx] - C_ref[idx]));
-
-            cout << "  Verification max_err : " << scientific << max_err
-                << (max_err < 1e-9 ? "  [PASS]" : "  [FAIL]") << "\n";
-            ruler();
-        }
-
-        // ── 10. Save result ───────────────────────────────────
         if (cfg.save_output)
             save_csv(global_C, M, N, "mat_C.csv");
     }
 }
 
-/* ═════════════════════════════════════════════════════════════
-   PUBLIC ENTRY POINT  (called from Source.cpp)
-   ═════════════════════════════════════════════════════════════ */
 void run_matrix_multiplication(int argc, char** argv, int comm_choice)
 {
     int world_rank, world_size;
@@ -399,11 +327,9 @@ void run_matrix_multiplication(int argc, char** argv, int comm_choice)
 
     if (comm_choice == 1) cfg.mode = MAT_BLOCKING;
     else if (comm_choice == 2) cfg.mode = MAT_NONBLOCKING;
-    else if (comm_choice == 3) cfg.mode = MAT_DEADLOCK_DEMO;
 
-    // Split into a dedicated communicator (mirrors heat-diffusion pattern)
     MPI_Comm compute_comm;
-    MPI_Comm_split(MPI_COMM_WORLD, /*color=*/0, world_rank, &compute_comm);
+    MPI_Comm_split(MPI_COMM_WORLD,0, world_rank, &compute_comm);
 
     int compute_rank;
     MPI_Comm_rank(compute_comm, &compute_rank);
