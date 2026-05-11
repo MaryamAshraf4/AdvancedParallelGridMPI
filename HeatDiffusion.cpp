@@ -62,16 +62,16 @@ Config parse_args(int argc, char** argv)
         else if (a == "--no-save")     
             cfg.save_output = false;
 
-        else if (a == "--demo-deadlock")    
-            cfg.demo_deadlock = true;
+    /*    else if (a == "--demo-deadlock")    
+            cfg.demo_deadlock = true;*/
 
-        else if (a == "--mode" && i+1 < argc) {
+     /*   else if (a == "--mode" && i+1 < argc) {
             string m = argv[++i];
             if (m == "blocking")  
                 cfg.mode = MODE_BLOCKING;
             else if (m == "nonblocking") 
                 cfg.mode = MODE_NONBLOCKING;
-        }
+        }*/
     }
     return cfg;
 }
