@@ -17,11 +17,11 @@ static const double CONVERGENCE_TOL = 1e-6;
 enum CommMode { MODE_NONBLOCKING, MODE_BLOCKING, MODE_DEADLOCK_DEMO };
 
 struct Config {
-    int      rows          = 512;
-    int      cols          = 512;
-    int      steps         = 500;
-    CommMode mode          = MODE_NONBLOCKING;
-    bool     save_output   = true;
+    int      rows = 512;
+    int      cols = 512;
+    int      steps = 500;
+    CommMode mode = MODE_NONBLOCKING;
+    bool     save_output = true;
     bool     demo_deadlock = false;
 };
 
@@ -59,24 +59,24 @@ Config parse_args(int argc, char** argv)
             }
         }
 
-        else if (a == "--no-save")     
+        else if (a == "--no-save")
             cfg.save_output = false;
 
-        else if (a == "--demo-deadlock")    
+        else if (a == "--demo-deadlock")
             cfg.demo_deadlock = true;
 
-        else if (a == "--mode" && i+1 < argc) {
+        else if (a == "--mode" && i + 1 < argc) {
             string m = argv[++i];
-            if (m == "blocking")  
+            if (m == "blocking")
                 cfg.mode = MODE_BLOCKING;
-            else if (m == "nonblocking") 
+            else if (m == "nonblocking")
                 cfg.mode = MODE_NONBLOCKING;
         }
     }
     return cfg;
 }
 
-void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MPI_Comm comm, int rank, int size)
+void demo_deadlock_scenario(vector<double>& local, int local_rows, int cols, MPI_Comm comm, int rank, int size)
 {
     const int TAG_DOWN = 1;
     const int TAG_UP = 2;
@@ -98,25 +98,25 @@ void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MP
 
     MPI_Barrier(comm);
 
-     
-      if (rank > 0)
-      MPI_Send(first_real, cols, MPI_DOUBLE,
-                rank - 1, TAG_DOWN, comm);
-     
-      if (rank < size - 1)
-          MPI_Send(last_real, cols, MPI_DOUBLE,
-                   rank + 1, TAG_UP, comm);
-     
-      if (rank > 0)
-         MPI_Recv(top_ghost, cols, MPI_DOUBLE,
-                   rank - 1, TAG_UP, comm,
-                   MPI_STATUS_IGNORE);
-     
-     if (rank < size - 1)
-          MPI_Recv(bot_ghost, cols, MPI_DOUBLE,
-                   rank + 1, TAG_DOWN, comm,
-                   MPI_STATUS_IGNORE);
-     
+
+    if (rank > 0)
+        MPI_Send(first_real, cols, MPI_DOUBLE,
+            rank - 1, TAG_DOWN, comm);
+
+    if (rank < size - 1)
+        MPI_Send(last_real, cols, MPI_DOUBLE,
+            rank + 1, TAG_UP, comm);
+
+    if (rank > 0)
+        MPI_Recv(top_ghost, cols, MPI_DOUBLE,
+            rank - 1, TAG_UP, comm,
+            MPI_STATUS_IGNORE);
+
+    if (rank < size - 1)
+        MPI_Recv(bot_ghost, cols, MPI_DOUBLE,
+            rank + 1, TAG_DOWN, comm,
+            MPI_STATUS_IGNORE);
+
 
     if (rank == 0) {
         cout << "\nBroken version skipped to avoid hanging.\n";
@@ -171,78 +171,79 @@ void demo_deadlock_scenario( vector<double>& local, int local_rows, int cols, MP
 }
 
 
-void exchange_ghosts_nonblocking( vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
+void exchange_ghosts_nonblocking(vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
 {
     MPI_Request reqs[4];
     int nreqs = 0;
     const int TAG_DOWN = 1, TAG_UP = 2;
 
-    double* top_ghost  = local.data();
-    double* bot_ghost  = local.data() + (local_rows + 1) * cols;
+    double* top_ghost = local.data();
+    double* bot_ghost = local.data() + (local_rows + 1) * cols;
     double* first_real = local.data() + cols;
-    double* last_real  = local.data() + local_rows * cols;
+    double* last_real = local.data() + local_rows * cols;
 
     if (rank > 0)
-        MPI_Irecv(top_ghost, cols, MPI_DOUBLE, rank-1, TAG_UP,   comm, &reqs[nreqs++]);
-    if (rank < size-1)
-        MPI_Irecv(bot_ghost, cols, MPI_DOUBLE, rank+1, TAG_DOWN, comm, &reqs[nreqs++]);
+        MPI_Irecv(top_ghost, cols, MPI_DOUBLE, rank - 1, TAG_UP, comm, &reqs[nreqs++]);
+    if (rank < size - 1)
+        MPI_Irecv(bot_ghost, cols, MPI_DOUBLE, rank + 1, TAG_DOWN, comm, &reqs[nreqs++]);
 
     if (rank > 0)
-        MPI_Isend(first_real, cols, MPI_DOUBLE, rank-1, TAG_DOWN, comm, &reqs[nreqs++]);
-    if (rank < size-1)
-        MPI_Isend(last_real,  cols, MPI_DOUBLE, rank+1, TAG_UP,   comm, &reqs[nreqs++]);
+        MPI_Isend(first_real, cols, MPI_DOUBLE, rank - 1, TAG_DOWN, comm, &reqs[nreqs++]);
+    if (rank < size - 1)
+        MPI_Isend(last_real, cols, MPI_DOUBLE, rank + 1, TAG_UP, comm, &reqs[nreqs++]);
 
     MPI_Waitall(nreqs, reqs, MPI_STATUSES_IGNORE);
 }
 
-void exchange_ghosts_blocking( vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
+void exchange_ghosts_blocking(vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
 {
     const int TAG_DOWN = 1, TAG_UP = 2;
 
-    double* top_ghost  = local.data();
-    double* bot_ghost  = local.data() + (local_rows + 1) * cols;
+    double* top_ghost = local.data();
+    double* bot_ghost = local.data() + (local_rows + 1) * cols;
     double* first_real = local.data() + cols;
-    double* last_real  = local.data() + local_rows * cols;
+    double* last_real = local.data() + local_rows * cols;
 
     if (rank % 2 == 0) {
-        if (rank < size-1) {
-            MPI_Send(last_real,  cols, MPI_DOUBLE, rank+1, TAG_UP,   comm);
-            MPI_Recv(bot_ghost,  cols, MPI_DOUBLE, rank+1, TAG_DOWN, comm, MPI_STATUS_IGNORE);
+        if (rank < size - 1) {
+            MPI_Send(last_real, cols, MPI_DOUBLE, rank + 1, TAG_UP, comm);
+            MPI_Recv(bot_ghost, cols, MPI_DOUBLE, rank + 1, TAG_DOWN, comm, MPI_STATUS_IGNORE);
         }
         if (rank > 0) {
-            MPI_Send(first_real, cols, MPI_DOUBLE, rank-1, TAG_DOWN, comm);
-            MPI_Recv(top_ghost,  cols, MPI_DOUBLE, rank-1, TAG_UP,   comm, MPI_STATUS_IGNORE);
+            MPI_Send(first_real, cols, MPI_DOUBLE, rank - 1, TAG_DOWN, comm);
+            MPI_Recv(top_ghost, cols, MPI_DOUBLE, rank - 1, TAG_UP, comm, MPI_STATUS_IGNORE);
         }
-    } else {
+    }
+    else {
         if (rank > 0) {
-            MPI_Recv(top_ghost,  cols, MPI_DOUBLE, rank-1, TAG_UP,   comm, MPI_STATUS_IGNORE);
-            MPI_Send(first_real, cols, MPI_DOUBLE, rank-1, TAG_DOWN, comm);
+            MPI_Recv(top_ghost, cols, MPI_DOUBLE, rank - 1, TAG_UP, comm, MPI_STATUS_IGNORE);
+            MPI_Send(first_real, cols, MPI_DOUBLE, rank - 1, TAG_DOWN, comm);
         }
-        if (rank < size-1) {
-            MPI_Recv(bot_ghost,  cols, MPI_DOUBLE, rank+1, TAG_DOWN, comm, MPI_STATUS_IGNORE);
-            MPI_Send(last_real,  cols, MPI_DOUBLE, rank+1, TAG_UP,   comm);
+        if (rank < size - 1) {
+            MPI_Recv(bot_ghost, cols, MPI_DOUBLE, rank + 1, TAG_DOWN, comm, MPI_STATUS_IGNORE);
+            MPI_Send(last_real, cols, MPI_DOUBLE, rank + 1, TAG_UP, comm);
         }
     }
 }
 
 
-double compute_stencil( const vector<double>& cur, vector<double>& nxt, int local_rows, int cols)
+double compute_stencil(const vector<double>& cur, vector<double>& nxt, int local_rows, int cols)
 {
     double max_delta = 0.0;
 
     for (int i = 1; i <= local_rows; ++i) {
-        for (int j = 1; j < cols-1; ++j) {
+        for (int j = 1; j < cols - 1; ++j) {
             double val =
                 (
-                    cur[(i - 1) * cols + j] +  
-                    cur[(i + 1) * cols + j] +   
-                    cur[i * cols + (j - 1)] +   
-                    cur[i * cols + (j + 1)] + 
-                    cur[i * cols + j]  
+                    cur[(i - 1) * cols + j] +
+                    cur[(i + 1) * cols + j] +
+                    cur[i * cols + (j - 1)] +
+                    cur[i * cols + (j + 1)] +
+                    cur[i * cols + j]
                     ) / 5.0;
-            nxt[i*cols + j] = val;
-            double delta = fabs(val - cur[i*cols+j]);
-            if (delta > max_delta) 
+            nxt[i * cols + j] = val;
+            double delta = fabs(val - cur[i * cols + j]);
+            if (delta > max_delta)
                 max_delta = delta;
         }
     }
@@ -261,18 +262,18 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
 
     vector<int> row_counts(compute_size), row_offsets(compute_size);
     int base = ROWS / compute_size;
-    int rem  = ROWS % compute_size;
+    int rem = ROWS % compute_size;
     for (int p = 0; p < compute_size; ++p) {
-        row_counts[p]  = base + (p < rem ? 1 : 0);
-        row_offsets[p] = (p == 0) ? 0 : row_offsets[p-1] + row_counts[p-1];
+        row_counts[p] = base + (p < rem ? 1 : 0);
+        row_offsets[p] = (p == 0) ? 0 : row_offsets[p - 1] + row_counts[p - 1];
     }
     int local_rows = row_counts[compute_rank];
 
     if (compute_rank == 0) {
         ruler();
         cout << "Grid: " << ROWS << " x " << COLS
-                  << "  |  Processes: " << compute_size
-                  << "  |  Steps: " << cfg.steps << "\n";
+            << "  |  Processes: " << compute_size
+            << "  |  Steps: " << cfg.steps << "\n";
         cout << "Mode: ";
 
         switch (cfg.mode)
@@ -314,7 +315,7 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
     vector<double> global_grid;
     vector<int> send_counts(compute_size), send_offsets(compute_size);
     for (int p = 0; p < compute_size; ++p) {
-        send_counts[p]  = row_counts[p]  * COLS;
+        send_counts[p] = row_counts[p] * COLS;
         send_offsets[p] = row_offsets[p] * COLS;
     }
 
@@ -326,7 +327,7 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
     MPI_Scatterv(
         compute_rank == 0 ? global_grid.data() : nullptr,
         send_counts.data(), send_offsets.data(), MPI_DOUBLE,
-        cur.data() + COLS,   
+        cur.data() + COLS,
         local_rows * COLS, MPI_DOUBLE,
         0, compute_comm
     );
@@ -334,21 +335,22 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
 
     double t_start = MPI_Wtime();
     bool converged = false;
+    int  actual_steps = 0;
 
-    for (int step = 0; step < cfg.steps && !converged; ++step) {
+    for (int step = 0; step < cfg.steps && !converged; ++step, ++actual_steps) {
 
         if (cfg.mode == MODE_NONBLOCKING)
             exchange_ghosts_nonblocking(cur, local_rows, COLS,
-                                        compute_rank, compute_size, compute_comm);
+                compute_rank, compute_size, compute_comm);
         else
             exchange_ghosts_blocking(cur, local_rows, COLS,
-                                     compute_rank, compute_size, compute_comm);
+                compute_rank, compute_size, compute_comm);
 
         double local_delta = compute_stencil(cur, nxt, local_rows, COLS);
 
         double global_delta = 0.0;
         MPI_Allreduce(&local_delta, &global_delta, 1,
-                      MPI_DOUBLE, MPI_MAX, compute_comm);
+            MPI_DOUBLE, MPI_MAX, compute_comm);
 
         if (global_delta < CONVERGENCE_TOL) converged = true;
 
@@ -356,8 +358,8 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
 
         if (compute_rank == 0 && step % 100 == 0)
             cout << "  step " << setw(5) << step
-                      << "  max_delta = " << scientific << global_delta
-                      << (converged ? "  [CONVERGED]" : "") << "\n";
+            << "  max_delta = " << scientific << global_delta
+            << (converged ? "  [CONVERGED]" : "") << "\n";
     }
 
     double t_elapsed = MPI_Wtime() - t_start;
@@ -366,7 +368,7 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
         global_grid.assign(ROWS * COLS, 0.0);
 
     MPI_Gatherv(
-        cur.data() + COLS,          
+        cur.data() + COLS,
         local_rows * COLS, MPI_DOUBLE,
         compute_rank == 0 ? global_grid.data() : nullptr,
         send_counts.data(), send_offsets.data(), MPI_DOUBLE,
@@ -377,13 +379,13 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
         ruler();
         cout << "\nPerformance Summary\n";
         cout << "  Elapsed time  : " << fixed << setprecision(4)
-                  << t_elapsed << " s\n";
-        cout << "  Steps/second  : " << fixed <<  setprecision(1)
-                  << cfg.steps / t_elapsed << "\n";
+            << t_elapsed << " s\n";
+        cout << "  Steps/second  : " << fixed << setprecision(1)
+            << actual_steps / t_elapsed << "\n";
         double cells = (double)ROWS * COLS;
-        double mcells_per_sec = (cells * cfg.steps) / (t_elapsed * 1e6);
+        double mcells_per_sec = (cells * actual_steps) / (t_elapsed * 1e6);
         cout << "  MCells/second : " << fixed << setprecision(2)
-                  << mcells_per_sec << "\n";
+            << mcells_per_sec << "\n";
         cout << "  Convergence   : " << (converged ? "YES" : "NO (max steps reached)") << "\n";
         ruler();
 
@@ -398,9 +400,9 @@ void run_solver(const Config& cfg, MPI_Comm compute_comm)
 
     if (compute_rank == 0) {
         cout << "Per-rank timing (min/avg/max): "
-                  << fixed << setprecision(4)
-                  << min_t << " / " << sum_t / compute_size << " / " << max_t
-                  << " s\n";
+            << fixed << setprecision(4)
+            << min_t << " / " << sum_t / compute_size << " / " << max_t
+            << " s\n";
         ruler();
     }
 }
@@ -426,7 +428,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
     }
 
     Config cfg = parse_args(argc, argv);
-    cfg.mode = MODE_NONBLOCKING; 
+    cfg.mode = MODE_NONBLOCKING;
     if (comm_choice == 1)
         cfg.mode = MODE_BLOCKING;
     else if (comm_choice == 2)
@@ -436,20 +438,20 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
         cfg.mode = MODE_DEADLOCK_DEMO;
         cfg.demo_deadlock = true;
     }
-    
+
     int compute_color = 0;
     MPI_Comm compute_comm;
-    MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm); 
-    int compute_rank, compute_size; 
-    MPI_Comm_rank(compute_comm, &compute_rank); 
-    MPI_Comm_size(compute_comm, &compute_size); 
+    MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm);
+    int compute_rank, compute_size;
+    MPI_Comm_rank(compute_comm, &compute_rank);
+    MPI_Comm_size(compute_comm, &compute_size);
     if (compute_rank == 0)
     {
         ruler(); cout
             << " Heat Diffusion MPI Solver\n"; ruler();
     }
     print_performance_header(compute_rank);
-    run_solver(cfg,compute_comm);
+    run_solver(cfg, compute_comm);
     MPI_Comm_free(&compute_comm);
 
 }
