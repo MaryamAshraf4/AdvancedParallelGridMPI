@@ -423,7 +423,7 @@ double compute_stencil(
    MAIN SOLVER
    ═════════════════════════════════════════════════════════════ */
 void run_solver(const Config& cfg, int rank, int size,
-                MPI_Comm compute_comm, MPI_Comm monitor_comm)
+                MPI_Comm compute_comm)
 {
     const int ROWS = cfg.rows;
     const int COLS = cfg.cols;
@@ -611,12 +611,12 @@ void run_heat_diffusion(int argc, char** argv)
     Config cfg = parse_args(argc, argv);
 
     int compute_color = 0;
-    int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
+    //int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
 
-    MPI_Comm compute_comm, monitor_comm;
+    MPI_Comm compute_comm;
 
     MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm);
-    MPI_Comm_split(MPI_COMM_WORLD, monitor_color, world_rank, &monitor_comm);
+    //MPI_Comm_split(MPI_COMM_WORLD, monitor_color, world_rank, &monitor_comm);
 
     int compute_rank, compute_size;
 
@@ -636,10 +636,11 @@ void run_heat_diffusion(int argc, char** argv)
 
     print_performance_header(compute_rank);
 
-    run_solver(cfg, world_rank, world_size, compute_comm, monitor_comm);
+    run_solver(cfg, world_rank, world_size, compute_comm);
+    //run_solver(cfg, world_rank, world_size, compute_comm, monitor_com);
 
     MPI_Comm_free(&compute_comm);
 
-    if (monitor_comm != MPI_COMM_NULL)
-        MPI_Comm_free(&monitor_comm);
+    //if (monitor_comm != MPI_COMM_NULL)
+    //    MPI_Comm_free(&monitor_comm);
 }
