@@ -38,8 +38,8 @@ int main(int argc, char** argv)
 
     if (rank == 0)
     {
-        std::cout << "\n[DEBUG] choice = " << choice
-            << " | comm = " << comm_choice << "\n";
+        std::cout << "choice=" << choice
+            << " - comm_choice=" << comm_choice << "\n";
     }
 
     switch (choice)

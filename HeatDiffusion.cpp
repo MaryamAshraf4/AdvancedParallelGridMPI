@@ -448,8 +448,21 @@ void run_solver(const Config& cfg, int rank, int size,
         std::cout << "Grid: " << ROWS << " x " << COLS
                   << "  |  Processes: " << compute_size
                   << "  |  Steps: " << cfg.steps << "\n";
-        std::cout << "Mode: " << (cfg.mode == MODE_NONBLOCKING ? "non-blocking"
-                                                                : "blocking") << "\n";
+        std::cout << "Mode: ";
+
+        switch (cfg.mode)
+        {
+        case MODE_BLOCKING:
+            std::cout << "blocking";
+            break;
+        case MODE_NONBLOCKING:
+            std::cout << "non-blocking";
+            break;
+        case MODE_DEADLOCK_DEMO:
+            std::cout << "deadlock-demo";
+            break;
+        }
+        std::cout << "\n";
         std::cout << "Row distribution: ";
         for (int p = 0; p < compute_size; ++p)
             std::cout << "P" << p << "=" << row_counts[p] << " ";
@@ -609,6 +622,7 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
     }
 
     Config cfg = parse_args(argc, argv);
+    cfg.mode = MODE_NONBLOCKING; // default safe value
     if (comm_choice == 1)
         cfg.mode = MODE_BLOCKING;
     else if (comm_choice == 2)
@@ -618,8 +632,6 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
         cfg.mode = MODE_DEADLOCK_DEMO;
         cfg.demo_deadlock = true;
     }
-    else
-        cfg.mode = MODE_NONBLOCKING;
     int compute_color = 0;
     //int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
 
