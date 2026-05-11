@@ -472,69 +472,18 @@ void run_heat_diffusion(int argc, char** argv, int comm_choice)
         cfg.demo_deadlock = true;
     }
     
-    int color;
-
-    if (world_rank == 0)
-        color = 1;
-    else
-        color = 0;
-
-    MPI_Comm split_comm;
-
-    MPI_Comm_split(
-        MPI_COMM_WORLD,
-        color,
-        world_rank,
-        &split_comm
-    );
-
-    if (color == 0)
+    int compute_color = 0;
+    MPI_Comm compute_comm;
+    MPI_Comm_split(MPI_COMM_WORLD, compute_color, world_rank, &compute_comm); 
+    int compute_rank, compute_size; 
+    MPI_Comm_rank(compute_comm, &compute_rank); 
+    MPI_Comm_size(compute_comm, &compute_size); 
+    if (compute_rank == 0)
     {
-
-        int compute_rank, compute_size;
-
-        MPI_Comm_rank(split_comm, &compute_rank);
-        MPI_Comm_size(split_comm, &compute_size);
-
-        if (compute_rank == 0) {
-            ruler();
-            cout << "Compute Group Started\n";
-            ruler();
-        }
-
-        // print_performance_header(compute_rank);
-
-        run_solver(cfg,
-            world_rank,
-            world_size,
-            split_comm);
-
-        MPI_Comm_free(&split_comm);
-
-
+        ruler(); cout
+            << " Heat Diffusion MPI Solver\n"; ruler();
     }
-    else
-    {
-        ruler();
-
-        cout << " MONITOR GROUP\n";
-
-        cout << " Heat Diffusion MPI Solver\n";
-        ruler();
-
-
-        cout << "[Monitor] Rank "
-            << world_rank
-            << " tracking execution statistics...\n";
-
-        cout << "[Monitor] Compute processes = "
-            << world_size - 1
-            << "\n";
-
-        ruler();
-
-        MPI_Comm_free(&split_comm);
-
-    }
+    print_performance_header(compute_rank);
+    run_solver(cfg, world_rank, world_size, compute_comm);
 
 }
