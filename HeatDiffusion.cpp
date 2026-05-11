@@ -210,7 +210,6 @@ void exchange_ghosts_nonblocking( vector<double>& local, int local_rows, int col
     MPI_Waitall(nreqs, reqs, MPI_STATUSES_IGNORE);
 }
 
-/* Strategy B: Blocking (simpler, but potential deadlock if not ordered) */
 void exchange_ghosts_blocking( vector<double>& local, int local_rows, int cols, int rank, int size, MPI_Comm comm)
 {
     const int TAG_DOWN = 1, TAG_UP = 2;
@@ -220,7 +219,6 @@ void exchange_ghosts_blocking( vector<double>& local, int local_rows, int cols, 
     double* first_real = local.data() + cols;
     double* last_real  = local.data() + local_rows * cols;
 
-    /* Deadlock-safe ordering: even ranks send first, odd recv first */
     if (rank % 2 == 0) {
         if (rank < size-1) {
             MPI_Send(last_real,  cols, MPI_DOUBLE, rank+1, TAG_UP,   comm);
@@ -242,38 +240,26 @@ void exchange_ghosts_blocking( vector<double>& local, int local_rows, int cols, 
     }
 }
 
-/* ═════════════════════════════════════════════════════════════
-   STENCIL COMPUTATION  (5-point averaging stencil)
-   ═════════════════════════════════════════════════════════════
-   local layout (with ghost rows):
-     row 0           = top ghost
-     rows 1..lr      = owned rows
-     row lr+1        = bottom ghost
 
-   Update rule: u_new[i][j] = u[i][j]
-       + alpha*dt/dx^2 * (u[i-1][j] + u[i+1][j] + u[i][j-1] + u[i][j+1]
-                           - 4*u[i][j])
-   ───────────────────────────────────────────────────────────── */
 double compute_stencil( const vector<double>& cur, vector<double>& nxt, int local_rows, int cols)
 {
-    //const double r = ALPHA * DT / (DX * DX);
     double max_delta = 0.0;
 
     for (int i = 1; i <= local_rows; ++i) {
         for (int j = 1; j < cols-1; ++j) {
             double val =
                 (
-                    cur[(i - 1) * cols + j] +   // top
-                    cur[(i + 1) * cols + j] +   // bottom
-                    cur[i * cols + (j - 1)] +   // left
-                    cur[i * cols + (j + 1)] +   // right
-                    cur[i * cols + j]           // center
+                    cur[(i - 1) * cols + j] +  
+                    cur[(i + 1) * cols + j] +   
+                    cur[i * cols + (j - 1)] +   
+                    cur[i * cols + (j + 1)] + 
+                    cur[i * cols + j]  
                     ) / 5.0;
             nxt[i*cols + j] = val;
-            double delta = std::fabs(val - cur[i*cols+j]);
-            if (delta > max_delta) max_delta = delta;
+            double delta = fabs(val - cur[i*cols+j]);
+            if (delta > max_delta) 
+                max_delta = delta;
         }
-        /* Left and right walls = 0 (already initialised) */
     }
     return max_delta;
 }
