@@ -55,7 +55,7 @@ static const double DX         = 1.0;   // spatial step
 static const double CONVERGENCE_TOL = 1e-6;
 
 enum CommMode { MODE_NONBLOCKING, MODE_BLOCKING, MODE_DEADLOCK_DEMO };
-
+//int comm_choice = 0;
 /* ─────────────────────────────────────────────────────────────
    Helper: parse CLI arguments
    ───────────────────────────────────────────────────────────── */
@@ -596,7 +596,7 @@ void print_performance_header(int rank)
 /* ═════════════════════════════════════════════════════════════
    MAIN
    ═════════════════════════════════════════════════════════════ */
-void run_heat_diffusion(int argc, char** argv)
+void run_heat_diffusion(int argc, char** argv, int comm_choice)
 {
     int world_rank, world_size;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -609,7 +609,17 @@ void run_heat_diffusion(int argc, char** argv)
     }
 
     Config cfg = parse_args(argc, argv);
-
+    if (comm_choice == 1)
+        cfg.mode = MODE_BLOCKING;
+    else if (comm_choice == 2)
+        cfg.mode = MODE_NONBLOCKING;
+    else if (comm_choice == 3)
+    {
+        cfg.mode = MODE_DEADLOCK_DEMO;
+        cfg.demo_deadlock = true;
+    }
+    else
+        cfg.mode = MODE_NONBLOCKING;
     int compute_color = 0;
     //int monitor_color = (world_rank == 0) ? 1 : MPI_UNDEFINED;
 
