@@ -2,9 +2,10 @@
 #include <iostream>
 
 #include "HeatDiffusion.h"
-//#include "matrix_multiplication.h"
+#include "MatrixMultiplication.h"
 
 using namespace std;
+
 int main(int argc, char** argv)
 {
     MPI_Init(&argc, &argv);
@@ -13,7 +14,7 @@ int main(int argc, char** argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     int choice = 0;
-    int comm_choice = 1; 
+    int comm_choice = 1;
 
     if (rank == 0)
     {
@@ -23,24 +24,19 @@ int main(int argc, char** argv)
         cout << "Choose algorithm: ";
         cin >> choice;
 
-        if (choice == 1)
-        {
-            cout << "\nChoose communication strategy:\n";
-            cout << "1. Blocking\n";
-            cout << "2. Non-blocking\n";
-            cout << "3. Deadlock Demo\n";
-            cout << "Choice: ";
-            cin >> comm_choice;
-        }
+        cout << "\nChoose communication strategy:\n";
+        cout << "1. Blocking\n";
+        cout << "2. Non-blocking\n";
+        cout << "3. Deadlock Demo\n";
+        cout << "Choice: ";
+        cin >> comm_choice;
     }
 
     MPI_Bcast(&choice, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&comm_choice, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     if (rank == 0)
-    {
         cout << "choice=" << choice << " - comm_choice=" << comm_choice << "\n";
-    }
 
     switch (choice)
     {
@@ -49,7 +45,7 @@ int main(int argc, char** argv)
         break;
 
     case 2:
-        // run_matrix_multiplication(argc, argv);
+        run_matrix_multiplication(argc, argv, comm_choice);
         break;
 
     default:

@@ -24,12 +24,18 @@
     <ClCompile Include="Shared.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MatrixMultiplication.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HeatDiffusion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Shared.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MatrixMultiplication.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
